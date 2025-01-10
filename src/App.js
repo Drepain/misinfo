@@ -5,10 +5,21 @@ import './App.css';
 import React, {useState, useEffect, useRef} from 'react';
 import { db } from './FirebaseConfig';
 // import { collection, getDocs, addDoc, doc, setDoc, getDoc, updateDoc, deleteDoc, usersCollectionRef } from 'firebase/firestore'; // full import list
-import { collection, addDoc } from 'firebase/firestore';
+import { doc, collection, addDoc, getDocs, getFirestore, usersRef, updateDoc } from 'firebase/firestore';
 
 //change mode to see different pages (currently 1-2)
 let content
+
+let currentRoom
+let playerName
+let playerSentence
+let misinfo = false
+let playerWord = ""
+let playerWordInto = ""
+let docId
+let currentTweet
+
+await GetFact()
 
 /*if (mode === 0) {
   content = <Template/>;
@@ -58,12 +69,51 @@ function Template() {
   )
 }
 
+async function FindRoom(code) {
+
+  let foundRoom = false
+
+  const roomsRef = collection(db, 'rooms');
+  const querySnapshot = await getDocs(roomsRef);
+
+
+  const rooms = querySnapshot.docs.filter(doc => doc.data().code === code);
+
+  rooms.forEach(doc => {
+
+    console.log(doc.id, '=>', doc.data());
+
+    docId = doc.id
+
+    foundRoom = true
+  });
+
+  return foundRoom
+
+}
+
 function Test() {
 
   const [mode, setMode] = useState(0)
 
   const roomCode = CreateRoomCode()
+
+  const [usernick, setUsernick] = useState("Nickname")
+  const [userroom, setUserroom] = useState("Room Code")
+
+  let roomExists
   
+  const onSubmit =  async () => {
+    let result = await FindRoom(userroom)
+    roomExists = result
+    console.log("Room Exists" + roomExists)
+    if (roomExists === true) {
+      setMode((mode) => 2)
+      currentRoom = userroom
+      playerName = usernick
+    }
+  }
+
   if (mode === 0) {
   return (
     <div className='App'>
@@ -76,15 +126,15 @@ function Test() {
           <p>
             Enter Nickname:
           </p>
-            <TextBox Text={"Nickname"}/>
+            <TextBox Text={usernick} onChange={setUsernick}/>
           <p>
             Enter Room Code:
           </p>
-            <TextBox Text={"Room Code"}/>
+            <TextBox Text={userroom} onChange={setUserroom}/>
             <p></p>
-          <SubmitButton text="Submit"/>
+          <SubmitButton text="Submit" onClick={onSubmit}/>
 
-          <h1 onClick={() => {setMode((mode) => 1); GetFact()}}>I wanna create a room!</h1>
+          <h1 onClick={() => {setMode((mode) => 1); currentRoom = roomCode}}>I wanna create a room!</h1>
         </div>
       </header>
     </div>
@@ -92,13 +142,17 @@ function Test() {
   } else if (mode === 1) {
     CreateRoom(roomCode);
     return(
-      <WaitingRoom code={roomCode}/>
+      <HostView code = {roomCode}/>
+    )
+  } else if (mode === 2) {
+
+    return (
+      <PlayerView/>
     )
   }
 }
 
 async function GetFact() {
-  let fact
   fetch("https://api.api-ninjas.com/v1/facts", {
     method: 'GET',
     headers: {
@@ -106,10 +160,9 @@ async function GetFact() {
     },
   })
   .then((response) => response.json())
-  .then((json) => {fact = json[0].fact
-  console.log(fact)
+  .then((json) => {playerSentence = json[0].fact
+  console.log(playerSentence)
   } );
-  return fact
 }
 
 function CreateRoomCode() {
@@ -127,15 +180,15 @@ function CreateRoomCode() {
 
 }
 
-function SubmitButton ({text}) {
+function SubmitButton ({text, onClick}) {
   return (
     <div className='Submit-Button'>
-      <button className='button'>{text}</button>
+      <button className='button' onClick = {onClick}>{text}</button>
     </div>
   )
 }
 
-function TextBox ({Text}) {
+function TextBox ({Text, onChange, extra}) {
 
   const [value, setValue] = useState(Text);
 
@@ -152,7 +205,7 @@ function TextBox ({Text}) {
   }
 
   return (
-    <input className='textbox' value = {value} onFocus={handleFocus} onChange={(e) => setValue(e.target.value)} onBlur={handleUnfocus}/>
+    <input className='textbox' value = {value} onFocus={handleFocus} onChange={(e) => {setValue(e.target.value); onChange(e.target.value)} } onBlur={handleUnfocus}/>
   )
 }
 
@@ -185,13 +238,106 @@ function WaitingTweet({tweet}) {
   )
 }
 
-function WaitingRoom() {
+function HostView({code}) {
+
+
+  const [mode, setMode] = useState(0)
+  FindRoom(code)
+
+  if (mode === 0) {
+    return(
+      <WaitingRoom extra={() => setMode(1)}/>
+    )
+  } else if (mode === 1) {
+    return (
+      <GameScreen/>
+    )
+  } else if (mode === 2) {
+    return(
+      <ResultsScreen/>
+    )
+  }
+}
+
+function PlayerView() {
+
+  const [mode, setMode] = useState(0)
+
+  if (mode === 0) {
+    return(
+      <SentenceScreen sentence={playerSentence}/>
+    )
+  } else if (mode === 1) {
+    //you were here, about to add the player guessing feature. Update the player document to have an array of guesses from other players, and add a listener for when the timer ends
+    /*
+     ```javascript
+
+ import { doc, onSnapshot } from "firebase/firestore";
+
+ import { db } from "./firebase"; // Assuming you have your Firestore instance
+
+
+ const docRef = doc(db, "yourCollection", "yourDocumentId");
+
+
+ onSnapshot(docRef, (docSnapshot) => {
+
+     if (docSnapshot.exists()) {
+
+         const data = docSnapshot.data();
+
+         const value = data.yourField; // Access the value you want
+
+         // Update your UI or perform other actions based on the value
+
+         console.log("Value changed:", value);
+
+     } else {
+
+         console.log("No such document!");
+
+     }
+
+ });
+
+ ```
+  see if this means anything to you*/
+  }
+}
+
+async function StartGame() {
+  const docRef = doc(db, "rooms", docId);
+  try {
+    await updateDoc(docRef, {
+      round: 1
+    });
+
+    console.log("Document updated successfully!");
+  } catch (error) {
+    console.error("Error updating document: ", error);
+  }
+}
+
+async function MakeGuess() {
+
+}
+
+function WaitingRoom({extra}) {
+
+  const handleClick = async () => {
+    await StartGame()
+
+    extra()
+  }
 
   return(
 
     <div className="App">
       <header className='App-header'>
-        <WaitingTweet tweet={roomTweet}/>
+        <div className="Waiting-Room">
+          <WaitingTweet tweet={roomTweet}/>
+          <SubmitButton text="Start Game" onClick={handleClick}/>
+        </div>
       </header>
     </div>
   )
@@ -246,6 +392,25 @@ async function CreateRoom(code) {
   }
 }
 
+
+async function CreatePlayer(Nickname) {
+
+  const playerDoc = {
+    nickname: Nickname,
+    sentence: playerSentence,
+    misinfo: misinfo,
+    wordChangedInto: playerWordInto,
+    wordChanged: playerWord
+  };
+
+  try {
+    const roomDoc = doc(db, 'rooms', docId);
+    const docRef = await addDoc(collection(roomDoc, 'players'), playerDoc);
+    console.log('Document written with ID: ', docRef.id);
+  } catch (error) {
+    console.error('Error adding document: ', error);
+  }
+}
 
 let newPlayer = new Player("bobster", logo)
 let newPopupPlayer = new Player("bobert", logo)
@@ -437,13 +602,14 @@ function GuessingScreen() {
   }
 }
 
-function SentenceScreen() {
+function SentenceScreen({sentence}) {
 
   let APISentence = sentence.split(" ")
-  let EditableSentence = APISentence
 
   const [selected, isSelected] = useState("")
   const [wordSelected, setWordSelected] = useState(false)
+
+  const [changedWord, setChangedWord] = useState("Change word to...")
 
   function SentenceWords({word}) {
 
@@ -468,6 +634,7 @@ function SentenceScreen() {
         } style={properties}>{word}</h1>
       </div>
     )
+
   }
 
   if (wordSelected) {
@@ -481,8 +648,13 @@ function SentenceScreen() {
               ))}
             </div>
             <div className='Word-Text'>
-              <TextBox Text="Change word to..."/>
-              <SubmitButton text="I want to share misinformation."/>
+              <TextBox Text={changedWord} onChange={setChangedWord}/>
+              <SubmitButton text="I want to share misinformation." onClick={() => {
+                  misinfo = true
+                  playerWordInto = changedWord
+                  playerWord = selected
+                  CreatePlayer(playerName)
+                }}/>
             </div>
           </div>
         </div>
@@ -498,7 +670,7 @@ function SentenceScreen() {
                 <SentenceWords word={element}/>
               ))}
             </div>
-            <SubmitButton text="I want to share the truth."/>
+            <SubmitButton text="I want to share the truth." onClick={() => {CreatePlayer(playerName)}}/>
           </div>
         </div>
       </div>

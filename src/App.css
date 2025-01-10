@@ -106,7 +106,9 @@
   padding-left: 75px;
   padding-right: 75px;
   padding-top: 15px;
+  padding-bottom: 1px;
   background-color: #343a46;
+  margin-bottom: 20px;
 }
 
 .Tweet-profile {
@@ -251,12 +253,18 @@ hr {
 }
 
 .API-Sentence {
-  margin-left: 10px;
-  margin-right: 10px;
+  margin-left: 5px;
+  margin-right: 5px;
+  font-size:small;
 }
 
 .App-login h1 {
   color:#61dafb;
   font-size:larger;
   text-decoration: underline;
+}
+
+.Waiting-Room {
+  display: inline-block;
+  align-items: center;
 }
