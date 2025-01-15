@@ -5,7 +5,7 @@ import './App.css';
 import React, {useState, useEffect, useRef} from 'react';
 import { db } from './FirebaseConfig';
 // import { collection, getDocs, addDoc, doc, setDoc, getDoc, updateDoc, deleteDoc, usersCollectionRef } from 'firebase/firestore'; // full import list
-import { doc, collection, addDoc, getDocs, getFirestore, usersRef, updateDoc } from 'firebase/firestore';
+import { doc, collection, addDoc, getDocs, getFirestore, usersRef, updateDoc, onSnapshot } from 'firebase/firestore';
 
 //change mode to see different pages (currently 1-2)
 let content
@@ -147,7 +147,7 @@ function Test() {
   } else if (mode === 2) {
 
     return (
-      <PlayerView/>
+      <PlayerView code = {currentRoom}/>
     )
   }
 }
@@ -259,57 +259,115 @@ function HostView({code}) {
   }
 }
 
-function PlayerView() {
+
+async function CheckForRound() {
+
+  let foundRoom = false
+  let code = "balls"
+
+  const roomsRef = collection(db, 'rooms');
+  const querySnapshot = await getDocs(roomsRef);
+
+
+  const rooms = querySnapshot.docs.filter(doc => doc.data().code === code);
+
+  rooms.forEach(doc => {
+
+    console.log(doc.id, '=>', doc.data());
+
+    docId = doc.id
+
+    foundRoom = true
+  });
+
+  return foundRoom
+}
+
+function PlayerWaiting( {onGuessBegin} ) {
+
+  const [fieldChanged, setFieldChanged] = useState(false);
+
+
+  useEffect(() => {
+
+    const unsubscribe = onSnapshot(doc(db, 'rooms', docId), (doc) => {
+
+      // Check if the specific field has changed
+
+      if (doc.data().round !== 0) {
+
+        setFieldChanged(true);
+
+        console.log("round changed to: " + fieldChanged)
+        // You can also update previousFieldValue here for the next comparison
+
+        sentence = doc.data().currentSentence
+
+        onGuessBegin(2)
+
+      }
+
+    });
+
+
+    return () => unsubscribe(); // Clean up the listener on component unmount
+
+  }, [fieldChanged]);
+
+  return (
+    <div className="App">
+      <div className="App-header">
+        <h1>Waiting for others...</h1>
+      </div>
+    </div>
+  )
+}
+
+function PlayerView({code}) {
 
   const [mode, setMode] = useState(0)
 
+  FindRoom(code)
+  
+
+  //SquidGame(setMode(1))
+
   if (mode === 0) {
     return(
-      <SentenceScreen sentence={playerSentence}/>
+      <SentenceScreen sentence={playerSentence} changeMode={setMode}/>
     )
   } else if (mode === 1) {
-    //you were here, about to add the player guessing feature. Update the player document to have an array of guesses from other players, and add a listener for when the timer ends
-    /*
-     ```javascript
-
- import { doc, onSnapshot } from "firebase/firestore";
-
- import { db } from "./firebase"; // Assuming you have your Firestore instance
-
-
- const docRef = doc(db, "yourCollection", "yourDocumentId");
-
-
- onSnapshot(docRef, (docSnapshot) => {
-
-     if (docSnapshot.exists()) {
-
-         const data = docSnapshot.data();
-
-         const value = data.yourField; // Access the value you want
-
-         // Update your UI or perform other actions based on the value
-
-         console.log("Value changed:", value);
-
-     } else {
-
-         console.log("No such document!");
-
-     }
-
- });
-
- ```
-  see if this means anything to you*/
+    return (
+      <PlayerWaiting onGuessBegin={setMode}/>
+    )
+  } else if (mode === 2) {
+    return (
+      <GuessingScreen/>
+    )
   }
 }
 
 async function StartGame() {
   const docRef = doc(db, "rooms", docId);
+
+  const playersRef = collection(db, "rooms", docId, "players")
+  const querySnapshot = await getDocs(playersRef);
+
+  const rooms = querySnapshot.docs
+
+  rooms.forEach(doc => {
+
+    console.log(doc.id, '=>', doc.data().sentence);
+
+    newTweet.content = doc.data().sentence.replace(doc.data().wordChanged, doc.data().wordChangedInto);
+    newTweet.author.nickname = doc.data().nickname;
+
+  });
+
   try {
     await updateDoc(docRef, {
-      round: 1
+      round: 1,
+      currentSentence: newTweet.content
     });
 
     console.log("Document updated successfully!");
@@ -318,14 +376,12 @@ async function StartGame() {
   }
 }
 
-async function MakeGuess() {
-
-}
-
 function WaitingRoom({extra}) {
 
   const handleClick = async () => {
     await StartGame()
+
+
 
     extra()
   }
@@ -415,7 +471,7 @@ async function CreatePlayer(Nickname) {
 let newPlayer = new Player("bobster", logo)
 let newPopupPlayer = new Player("bobert", logo)
 let newTweet = new Tweet("bobert is very smelly and only cares about himself", newPlayer)
-let sentence = "Smoking is good for you."
+let sentence = "Smoking is bad for you."
 
 function TweetInterface({tweet}) {
 
@@ -602,7 +658,7 @@ function GuessingScreen() {
   }
 }
 
-function SentenceScreen({sentence}) {
+function SentenceScreen({sentence, changeMode}) {
 
   let APISentence = sentence.split(" ")
 
@@ -654,6 +710,7 @@ function SentenceScreen({sentence}) {
                   playerWordInto = changedWord
                   playerWord = selected
                   CreatePlayer(playerName)
+                  changeMode(1)
                 }}/>
             </div>
           </div>
@@ -670,7 +727,7 @@ function SentenceScreen({sentence}) {
                 <SentenceWords word={element}/>
               ))}
             </div>
-            <SubmitButton text="I want to share the truth." onClick={() => {CreatePlayer(playerName)}}/>
+            <SubmitButton text="I want to share the truth." onClick={() => {CreatePlayer(playerName); changeMode(1)}}/>
           </div>
         </div>
       </div>
