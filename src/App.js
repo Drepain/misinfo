@@ -312,7 +312,7 @@ function PlayerWaiting( {onGuessBegin} ) {
 
     return () => unsubscribe(); // Clean up the listener on component unmount
 
-  }, [fieldChanged]);
+  }, [fieldChanged, onGuessBegin]);
 
   return (
     <div className="App">
@@ -403,17 +403,24 @@ function GameScreen() {
 
   const [startPopup, setStartPopup] = useState(false);
   const timer = useRef(null);
+  const countdownTimer = useRef(null);
+  const [countdown, setCountdown] = useState(40);
 
   useEffect(() => {
+
+    if (countdown > 0) {
+      countdownTimer.current = setInterval(() => setCountdown((countdown) => countdown - 1 ), 1000)
+    }
 
     if (startPopup) {
       timer.current = setInterval(() => setStartPopup((startPopup) => !startPopup), 3 * 1000);
     }
 
     return () => {
+      clearInterval(countdownTimer.current);
       clearInterval(timer.current);
     };
-  }, [startPopup]);
+  }, [startPopup, countdown]);
 
   return (
     <div className="App">
@@ -421,12 +428,14 @@ function GameScreen() {
       <Popup author= {newPopupPlayer} startPopup={startPopup}/>
         <div className="Game-Screen">
           <TweetInterface tweet={newTweet}/>
+          {/*
           <button onClick={() => {
             if (startPopup === false) {
               setStartPopup(true);
               console.log(startPopup)
-            } 
-          }}>Toggle Notification</button>
+            }
+          }}>Toggle Notification</button>*/ }
+          <h1>{countdown}</h1>
         </div>
       </header>
     </div>
